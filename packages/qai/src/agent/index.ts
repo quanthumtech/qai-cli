@@ -39,7 +39,7 @@ export async function runAgent(opts: {
     grep: wrapTool({ ...GrepTool, execute: (p: any) => GrepTool.execute(p, ctx) }),
   }
 
-  const model = getModel(opts.model)
+  const model = await getModel(opts.model)
 
   const { text } = await generateText({
     model,
