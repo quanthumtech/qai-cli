@@ -1,12 +1,6 @@
-import { serve } from "./server/server"
-import { log } from "./util/log"
+import { runCLI } from "./cli"
 
-async function main() {
-  log.info("QAI starting...")
-  await serve()
-}
-
-main().catch((err) => {
+runCLI().catch((err) => {
   console.error(err)
   process.exit(1)
 })
