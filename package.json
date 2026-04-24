@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "qai",
+  "description": "QAI - AI-powered development agent",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.10",
+  "scripts": {
+    "dev": "bun run --cwd packages/qai src/index.ts",
+    "typecheck": "bun turbo typecheck",
+    "test": "bun turbo test"
+  },
+  "workspaces": {
+    "packages": [
+      "packages/*"
+    ]
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "1.0.9",
+    "@types/node": "22.13.9",
+    "husky": "9.1.7",
+    "prettier": "3.6.2",
+    "turbo": "2.5.6",
+    "typescript": "5.8.2"
+  },
+  "prettier": {
+    "semi": false,
+    "printWidth": 120
+  }
+}
