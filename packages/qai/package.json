@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "bin": {
-    "qai": "./src/index.ts"
+    "qai-cli": "./bin/qai-cli"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "dev": "bun run src/index.ts"
+    "dev": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "1.2.12",

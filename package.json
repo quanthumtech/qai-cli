@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "bun run --cwd packages/qai src/index.ts",
     "typecheck": "bun turbo typecheck",
-    "test": "bun turbo test"
+    "test": "bun turbo test",
+    "link": "bun link --cwd packages/qai"
   },
   "workspaces": {
     "packages": [
