@@ -120,7 +120,8 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
       console.log(reply.content)
     } catch (err: any) {
       console.log()
-      errorLine(err.message)
+      const msg = err.message ?? String(err)
+      errorLine(msg.replace(/^Error:\s*/i, ""))
     }
     console.log()
   }

@@ -9,10 +9,6 @@ import { GlobTool } from "../tool/glob"
 import { GrepTool } from "../tool/grep"
 import type { Tool } from "../tool/tool"
 
-const SYSTEM = `You are QAI, an AI coding agent. You help users with software development tasks.
-You have access to tools to read/write files, run bash commands, and search code.
-Always use absolute paths when working with files. Be concise and precise.`
-
 function wrapTool(def: Tool.Any) {
   return tool({
     description: def.description,
@@ -43,7 +39,11 @@ export async function runAgent(opts: {
 
   const { text } = await generateText({
     model,
-    system: SYSTEM,
+    system: `You are QAI, an AI coding agent. You help users with software development tasks.
+You have access to tools to read/write files, run bash commands, and search code.
+The current working directory is: ${opts.cwd}
+Always use absolute paths. When creating files, use paths inside ${opts.cwd} unless the user explicitly says otherwise.
+Be concise and precise.`,
     prompt: opts.prompt,
     tools,
     maxSteps: 20,
