@@ -51,6 +51,12 @@ Após a instalação, rode:
 qai
 ```
 
+## Atualização
+
+```bash
+qai update
+```
+
 ## Desenvolvimento
 
 ```bash

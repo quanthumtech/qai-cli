@@ -69,12 +69,26 @@ export async function runCLI() {
     return
   }
 
-  if (cmd === "--help" || cmd === "-h") {
+  if (cmd === "update") {
+    const isWindows = process.platform === "win32"
+    const script = isWindows
+      ? `irm 'https://raw.githubusercontent.com/quanthumtech/qai-cli/main/install.ps1' | iex`
+      : `curl -fsSL https://raw.githubusercontent.com/quanthumtech/qai-cli/main/install.sh | sh`
+    console.log(c.cyan + "Updating qai..." + c.reset)
+    const proc = isWindows
+      ? Bun.spawnSync(["powershell", "-Command", script], { stdout: "inherit", stderr: "inherit" })
+      : Bun.spawnSync(["sh", "-c", script], { stdout: "inherit", stderr: "inherit" })
+    if (proc.exitCode !== 0) process.exit(proc.exitCode ?? 1)
+    return
+  }
+
+
     console.log(`
 ${c.cyan}${c.bold}QAI${c.reset} — AI coding agent
 
 ${c.bold}Usage:${c.reset}
   qai                                    Interactive chat
+  qai update                             Update to latest version
   qai serve                              HTTP server (port 4096)
   qai provider list                      List configured providers
   qai provider default <id> [model]      Set default provider (and model)
