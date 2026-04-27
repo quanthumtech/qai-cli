@@ -48,6 +48,31 @@ async function resolveBaseURL(providerID: string): Promise<string | undefined> {
   return cfg?.baseURL
 }
 
+export async function listModels(providerID: string): Promise<string[]> {
+  const key = await resolveKey(providerID)
+  if (!key) return []
+
+  const cfg = await Config.getProvider(providerID)
+
+  const baseURLs: Record<string, string> = {
+    openai: "https://api.openai.com/v1",
+    groq: "https://api.groq.com/openai/v1",
+    mistral: "https://api.mistral.ai/v1",
+    nvidia: "https://integrate.api.nvidia.com/v1",
+  }
+  const base = cfg?.baseURL ?? baseURLs[providerID]
+  if (!base) return []
+
+  try {
+    const res = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } })
+    if (!res.ok) return []
+    const json = await res.json() as { data: { id: string }[] }
+    return json.data.map(m => m.id).sort()
+  } catch {
+    return []
+  }
+}
+
 export async function getModel(ref: ModelRef): Promise<LanguageModelV1> {
   const key = await resolveKey(ref.providerID)
   const baseURL = await resolveBaseURL(ref.providerID)

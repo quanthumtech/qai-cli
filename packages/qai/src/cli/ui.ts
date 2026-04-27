@@ -44,6 +44,19 @@ export function agentPrefix() {
   process.stdout.write(c.cyan + c.bold + "  qai  " + c.reset + c.gray + "› " + c.reset)
 }
 
+export function startSpinner(): () => void {
+  const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+  let i = 0
+  process.stdout.write(c.cyan + c.bold + "  qai  " + c.reset + c.dim)
+  const id = setInterval(() => {
+    process.stdout.write(`\r  qai  ${c.reset}${c.dim}${frames[i++ % frames.length]} thinking...${c.reset}`)
+  }, 80)
+  return () => {
+    clearInterval(id)
+    process.stdout.write(`\r  qai  › ${c.reset}`)
+  }
+}
+
 export function errorLine(msg: string) {
   console.log(c.red + "  err  " + c.reset + c.dim + msg + c.reset)
 }

@@ -56,6 +56,10 @@ export const Session = {
     messages.delete(id)
   },
 
+  async clearMessages(id: string): Promise<void> {
+    messages.set(id, [])
+  },
+
   async getMessages(sessionID: string): Promise<Message[]> {
     return messages.get(sessionID) ?? []
   },
@@ -67,8 +71,13 @@ export const Session = {
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content, createdAt: Date.now() }
     messages.get(sessionID)!.push(userMsg)
 
+    const history = messages.get(sessionID)!
+      .slice(0, -1) // exclude the user message just added
+      .map(m => ({ role: m.role, content: m.content }) as import("ai").CoreMessage)
+
     const reply = await runAgent({
       prompt: content,
+      history,
       model: session.model as ModelRef,
       cwd: session.cwd,
       sessionID,

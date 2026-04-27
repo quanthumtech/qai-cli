@@ -1,8 +1,8 @@
 import * as readline from "readline"
 import { Session } from "../session/index"
 import { Config } from "../config/index"
-import { DEFAULTS, type ProviderID } from "../provider/index"
-import { printLogo, userPrompt, agentPrefix, errorLine, infoLine, COLORS as c } from "./ui"
+import { DEFAULTS, type ProviderID, listModels } from "../provider/index"
+import { printLogo, userPrompt, startSpinner, errorLine, infoLine, COLORS as c } from "./ui"
 
 async function prompt(rl: readline.Interface, draw: () => void): Promise<string> {
   draw()
@@ -78,8 +78,8 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
 
   // Interactive chat
   const config = await Config.load()
-  const providerID = (process.env.QAI_PROVIDER ?? config.defaultProvider) as ProviderID
-  const modelID = process.env.QAI_MODEL ?? config.defaultModel ?? DEFAULTS[providerID] ?? "gpt-4o"
+  let providerID = (process.env.QAI_PROVIDER ?? config.defaultProvider) as ProviderID
+  let modelID = process.env.QAI_MODEL ?? config.defaultModel ?? DEFAULTS[providerID] ?? "gpt-4o"
 
   const session = await Session.create({ cwd: process.cwd(), model: { providerID, modelID } })
 
@@ -99,6 +99,7 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
       continue
     }
     if (input === "/clear") {
+      await Session.clearMessages(session.id)
       printLogo(providerID, modelID)
       continue
     }
@@ -107,18 +108,46 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
       console.log()
       continue
     }
-    if (input.startsWith("/model ")) {
-      const [pid, mid] = input.slice(7).split("/")
-      infoLine(`Restart with: QAI_PROVIDER=${pid} QAI_MODEL=${mid ?? ""} qai`)
+    if (input === "/model" || input === "/model list") {
+      infoLine(`current: ${providerID}/${modelID}`)
+      const stopSpin = startSpinner()
+      const models = await listModels(providerID)
+      stopSpin()
+      if (!models.length) {
+        infoLine("Could not fetch model list. Use: /model <providerID/modelID>")
+      } else {
+        models.forEach((m, i) => infoLine(`  ${String(i + 1).padStart(2)}. ${m}${m === modelID ? " ◀" : ""}`))
+        infoLine("Type the number to switch, or press Enter to keep current.")
+        const choice = (await prompt(rl, () => process.stdout.write(c.yellow + "  #   › " + c.reset))).trim()
+        const idx = parseInt(choice, 10) - 1
+        if (!isNaN(idx) && models[idx]) {
+          session.model.modelID = models[idx]
+          modelID = models[idx]
+          infoLine(`Switched to ${modelID}`)
+        }
+      }
       console.log()
       continue
     }
-
-    agentPrefix()
+    if (input.startsWith("/model ")) {
+      const [pid, mid] = input.slice(7).split("/")
+      if (mid) {
+        session.model.providerID = pid as ProviderID
+        session.model.modelID = mid
+        infoLine(`Switched to ${pid}/${mid}`)
+      } else {
+        infoLine(`Restart with: QAI_PROVIDER=${pid} qai`)
+      }
+      console.log()
+      continue
+    }
+    const stopSpinner = startSpinner()
     try {
       const reply = await Session.chat(session.id, input)
+      stopSpinner()
       console.log(reply.content)
     } catch (err: any) {
+      stopSpinner()
       console.log()
       const msg = err.message ?? String(err)
       errorLine(msg.replace(/^Error:\s*/i, ""))
