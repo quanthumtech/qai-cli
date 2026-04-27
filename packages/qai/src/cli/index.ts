@@ -32,6 +32,7 @@ async function handleProviderCmd(args: string[]) {
       enabled: true,
     })
     infoLine(`Provider '${id}' saved to ${Config.path}`)
+    infoLine(`Set as default: /provider default ${id}`)
     return
   }
   if (sub === "remove") {
@@ -128,6 +129,20 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
     }
     if (input === "/provider") {
       await handleProviderCmd(["list"])
+      console.log()
+      continue
+    }
+    if (input.startsWith("/provider ")) {
+      const parts = input.slice(10).split(" ")
+      await handleProviderCmd(parts)
+      // reload session if provider changed
+      if (parts[0] === "set" || parts[0] === "default") {
+        const newConfig = await Config.load()
+        providerID = (newConfig.defaultProvider ?? parts[1]) as ProviderID
+        modelID = newConfig.defaultModel ?? DEFAULTS[providerID] ?? "gpt-4o"
+        session.model.providerID = providerID
+        session.model.modelID = modelID
+      }
       console.log()
       continue
     }
