@@ -22,17 +22,18 @@ export const COLORS = {
 
 const c = COLORS
 
-export function printLogo(providerID: string, modelID: string) {
+export function printLogo(providerID: string, modelID: string, agentID: string = "dev") {
   console.clear()
   console.log(c.cyan + c.bold + LOGO + c.reset)
   console.log(c.gray + "  AI coding agent" + c.reset + c.dim + "  v1.0" + c.reset)
   console.log(c.gray + "  ─────────────────────────────────────" + c.reset)
   console.log(c.gray + `  provider  ` + c.white + providerID + c.reset)
   console.log(c.gray + `  model     ` + c.white + modelID + c.reset)
+  console.log(c.gray + `  agent     ` + c.cyan + agentID + c.reset)
   console.log(c.gray + "  ─────────────────────────────────────" + c.reset)
   console.log()
   console.log(c.dim + "  Type your message and press Enter. Type 'exit' to quit." + c.reset)
-  console.log(c.dim + "  Commands: /help  /provider  /model <id>  /clear" + c.reset)
+  console.log(c.dim + "  Commands: /help  /agents  /provider  /model <id>  /clear" + c.reset)
   console.log()
 }
 
@@ -51,6 +52,60 @@ function statusBar(): string {
   const left = branch ? `${dir}:${branch}` : dir
   return c.gray + c.dim + " " + left + c.reset
 }
+
+export function renderMarkdown(text: string): string {
+  const lines = text.split("\n")
+  const out: string[] = []
+  let inCode = false
+  let codeLang = ""
+
+  for (const line of lines) {
+    // Code fence
+    if (line.startsWith("```")) {
+      if (!inCode) {
+        inCode = true
+        codeLang = line.slice(3).trim()
+        out.push(c.dim + "  ┌─ " + (codeLang || "code") + c.reset)
+      } else {
+        inCode = false
+        out.push(c.dim + "  └─────" + c.reset)
+      }
+      continue
+    }
+
+    if (inCode) {
+      out.push(c.yellow + "  │ " + c.reset + c.white + line + c.reset)
+      continue
+    }
+
+    // Headers
+    if (line.startsWith("### ")) { out.push(c.cyan + c.bold + "  " + line.slice(4) + c.reset); continue }
+    if (line.startsWith("## "))  { out.push(c.cyan + c.bold + "  " + line.slice(3) + c.reset); continue }
+    if (line.startsWith("# "))   { out.push(c.cyan + c.bold + "  " + line.slice(2) + c.reset); continue }
+
+    // Bullet
+    if (line.match(/^[-*] /)) { out.push("  " + c.cyan + "•" + c.reset + " " + formatInline(line.slice(2))); continue }
+
+    // Numbered list
+    if (line.match(/^\d+\. /)) { out.push("  " + formatInline(line)); continue }
+
+    // Blank line
+    if (line.trim() === "") { out.push(""); continue }
+
+    out.push("  " + formatInline(line))
+  }
+
+  return out.join("\n")
+}
+
+function formatInline(text: string): string {
+  // Bold
+  text = text.replace(/\*\*(.+?)\*\*/g, c.bold + "$1" + c.reset)
+  // Inline code
+  text = text.replace(/`([^`]+)`/g, c.yellow + "$1" + c.reset)
+  return text
+}
+
 
 export function userPrompt() {
   console.log(statusBar())

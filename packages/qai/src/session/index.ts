@@ -2,6 +2,7 @@ import { z } from "zod"
 import { runAgent } from "../agent"
 import type { ModelRef } from "../provider"
 import { DEFAULTS } from "../provider"
+import { DEFAULT_AGENT, type AgentID } from "../agent/agents"
 
 export const MessageSchema = z.object({
   id: z.string(),
@@ -16,6 +17,7 @@ export const SessionSchema = z.object({
   title: z.string().optional(),
   cwd: z.string(),
   model: z.object({ providerID: z.string(), modelID: z.string() }),
+  agentID: z.string().default(DEFAULT_AGENT),
   createdAt: z.number(),
   updatedAt: z.number(),
 })
@@ -43,6 +45,7 @@ export const Session = {
         providerID: input.model?.providerID ?? "anthropic",
         modelID: input.model?.modelID ?? DEFAULTS["anthropic"],
       },
+      agentID: DEFAULT_AGENT,
       createdAt: now,
       updatedAt: now,
     }
@@ -81,6 +84,7 @@ export const Session = {
       model: session.model as ModelRef,
       cwd: session.cwd,
       sessionID,
+      agentID: session.agentID as AgentID,
     })
 
     const assistantMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: reply, createdAt: Date.now() }

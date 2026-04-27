@@ -2,7 +2,8 @@ import * as readline from "readline"
 import { Session } from "../session/index"
 import { Config } from "../config/index"
 import { DEFAULTS, type ProviderID, listModels } from "../provider/index"
-import { printLogo, userPrompt, startSpinner, errorLine, infoLine, COLORS as c } from "./ui"
+import { printLogo, userPrompt, startSpinner, errorLine, infoLine, renderMarkdown, COLORS as c } from "./ui"
+import { loadAgents, type AgentID } from "../agent/agents"
 
 async function prompt(rl: readline.Interface, draw: () => void): Promise<string> {
   draw()
@@ -121,7 +122,7 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
 
   const session = await Session.create({ cwd: process.cwd(), model: { providerID, modelID } })
 
-  printLogo(providerID, modelID)
+  printLogo(providerID, modelID, session.agentID)
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false })
 
@@ -132,13 +133,35 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
 
     // Slash commands
     if (input === "/help") {
-      infoLine("Commands: /help  /provider  /model <providerID/modelID>  /clear  exit")
+      infoLine("Commands: /help  /agents  /provider  /model <providerID/modelID>  /clear  exit")
+      console.log()
+      continue
+    }
+    if (input === "/agents") {
+      const agents = await loadAgents()
+      for (const agent of Object.values(agents)) {
+        const active = session.agentID === agent.id ? c.cyan + " ◀" + c.reset : ""
+        infoLine(`${c.bold}${agent.name}${c.reset}${c.dim}  ${agent.description}${c.reset}${active}`)
+        infoLine(`  switch: /agents ${agent.id}`)
+      }
+      console.log()
+      continue
+    }
+    if (input.startsWith("/agents ")) {
+      const id = input.slice(8).trim() as AgentID
+      const agents = await loadAgents()
+      if (!agents[id]) {
+        errorLine(`Unknown agent '${id}'. Available: ${Object.keys(agents).join(", ")}`)
+      } else {
+        session.agentID = id
+        printLogo(providerID, modelID, id)
+      }
       console.log()
       continue
     }
     if (input === "/clear") {
       await Session.clearMessages(session.id)
-      printLogo(providerID, modelID)
+      printLogo(providerID, modelID, session.agentID)
       continue
     }
     if (input === "/provider") {
@@ -205,7 +228,7 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
     try {
       const reply = await Session.chat(session.id, input)
       stopSpinner()
-      console.log(reply.content)
+      console.log(renderMarkdown(reply.content))
     } catch (err: any) {
       stopSpinner()
       console.log()

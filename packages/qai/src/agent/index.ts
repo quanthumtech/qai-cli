@@ -8,6 +8,7 @@ import { BashTool } from "../tool/bash"
 import { GlobTool } from "../tool/glob"
 import { GrepTool } from "../tool/grep"
 import type { Tool } from "../tool/tool"
+import { loadAgents, DEFAULT_AGENT, type AgentID } from "./agents"
 
 function wrapTool(def: Tool.Any) {
   return tool({
@@ -23,11 +24,14 @@ export async function runAgent(opts: {
   model: ModelRef
   cwd: string
   sessionID: string
+  agentID?: AgentID
   onText?: (text: string) => void
 }): Promise<string> {
   const ctx = { sessionID: opts.sessionID, cwd: opts.cwd }
+  const agents = await loadAgents()
+  const agent = agents[opts.agentID ?? DEFAULT_AGENT] ?? agents[DEFAULT_AGENT]
 
-  const tools = {
+  const allTools = {
     read: wrapTool({ ...ReadTool, execute: (p: any) => ReadTool.execute(p, ctx) }),
     write: wrapTool({ ...WriteTool, execute: (p: any) => WriteTool.execute(p, ctx) }),
     edit: wrapTool({ ...EditTool, execute: (p: any) => EditTool.execute(p, ctx) }),
@@ -36,17 +40,16 @@ export async function runAgent(opts: {
     grep: wrapTool({ ...GrepTool, execute: (p: any) => GrepTool.execute(p, ctx) }),
   }
 
+  // Restrict tools to what the agent declares
+  const tools = Object.fromEntries(
+    Object.entries(allTools).filter(([k]) => agent.tools.includes(k))
+  )
+
   const model = await getModel(opts.model)
 
   const { text, steps } = await generateText({
     model,
-    system: `You are QAI, an AI coding agent. You help users with software development tasks.
-You have access to tools to read/write files, run bash commands, and search code.
-The current working directory is: ${opts.cwd}
-Always use absolute paths. When creating files, use paths inside ${opts.cwd} unless the user explicitly says otherwise.
-Be concise and precise.
-IMPORTANT: Only use tools when the task genuinely requires file system access or running commands.
-For conceptual questions, explanations, code examples, or general knowledge — answer directly in text without calling any tool.`,
+    system: agent.systemPrompt + `\nThe current working directory is: ${opts.cwd}`,
     messages: [...opts.history, { role: "user", content: opts.prompt }],
     tools,
     maxSteps: 20,
