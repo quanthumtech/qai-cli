@@ -27,6 +27,7 @@ export function printLogo(providerID: string, modelID: string, agentID: string =
   console.log(c.cyan + c.bold + LOGO + c.reset)
   console.log(c.gray + "  AI coding agent" + c.reset + c.dim + "  v1.0" + c.reset)
   console.log(c.gray + "  ─────────────────────────────────────" + c.reset)
+  console.log(c.gray + "  By: Quanthum Tec" + c.reset)
   console.log(c.gray + `  provider  ` + c.white + providerID + c.reset)
   console.log(c.gray + `  model     ` + c.white + modelID + c.reset)
   console.log(c.gray + `  agent     ` + c.cyan + agentID + c.reset)
