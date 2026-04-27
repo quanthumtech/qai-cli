@@ -25,7 +25,7 @@ const c = COLORS
 export function printLogo(providerID: string, modelID: string) {
   console.clear()
   console.log(c.cyan + c.bold + LOGO + c.reset)
-  console.log(c.gray + "  AI coding agent" + c.reset)
+  console.log(c.gray + "  AI coding agent" + c.reset + c.dim + "  v1.0" + c.reset)
   console.log(c.gray + "  ─────────────────────────────────────" + c.reset)
   console.log(c.gray + `  provider  ` + c.white + providerID + c.reset)
   console.log(c.gray + `  model     ` + c.white + modelID + c.reset)
@@ -36,7 +36,24 @@ export function printLogo(providerID: string, modelID: string) {
   console.log()
 }
 
+function statusBar(): string {
+  const width = process.stdout.columns || 80
+  const home = process.env.HOME || ""
+  const cwd = process.cwd()
+  const dir = cwd.startsWith(home) ? "~" + cwd.slice(home.length) : cwd
+
+  let branch = ""
+  try {
+    const result = Bun.spawnSync(["git", "rev-parse", "--abbrev-ref", "HEAD"], { cwd })
+    if (result.exitCode === 0) branch = result.stdout.toString().trim()
+  } catch {}
+
+  const left = branch ? `${dir}:${branch}` : dir
+  return c.gray + c.dim + " " + left + c.reset
+}
+
 export function userPrompt() {
+  console.log(statusBar())
   process.stdout.write(c.green + c.bold + "  you  " + c.reset + c.white + "› " + c.reset)
 }
 
