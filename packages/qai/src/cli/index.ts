@@ -83,6 +83,25 @@ export async function runCLI() {
     return
   }
 
+  if (cmd === "uninstall") {
+    const isWindows = process.platform === "win32"
+    const self = process.execPath
+
+    if (isWindows) {
+      const dir = self.replace(/\\qai\.exe$/, "")
+      console.log(c.yellow + "Uninstalling qai..." + c.reset)
+      Bun.spawnSync(["powershell", "-Command", `Remove-Item -Force "${self}"`], { stdout: "inherit", stderr: "inherit" })
+      console.log(c.dim + `Removed ${self}` + c.reset)
+      console.log(c.dim + `You may also remove ${dir} and update your PATH manually.` + c.reset)
+    } else {
+      console.log(c.yellow + "Uninstalling qai..." + c.reset)
+      Bun.spawnSync(["sh", "-c", `rm -f "${self}"`], { stdout: "inherit", stderr: "inherit" })
+      console.log(c.dim + `Removed ${self}` + c.reset)
+      console.log(c.dim + "Config kept at ~/.qai — remove manually if desired." + c.reset)
+    }
+    return
+  }
+
   if (cmd === "--help" || cmd === "-h") {
     console.log(`
 ${c.cyan}${c.bold}QAI${c.reset} — AI coding agent
@@ -90,6 +109,7 @@ ${c.cyan}${c.bold}QAI${c.reset} — AI coding agent
 ${c.bold}Usage:${c.reset}
   qai                                    Interactive chat
   qai update                             Update to latest version
+  qai uninstall                          Remove qai from the system
   qai serve                              HTTP server (port 4096)
   qai provider list                      List configured providers
   qai provider default <id> [model]      Set default provider (and model)

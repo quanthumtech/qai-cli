@@ -63,6 +63,12 @@ qai
 qai update
 ```
 
+## Desinstalação
+
+```bash
+qai uninstall
+```
+
 ## Provedores
 
 Configure um provedor de LLM antes de usar:
