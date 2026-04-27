@@ -60,6 +60,13 @@ export const Config = {
     await Config.save(config)
   },
 
+  async setDefault(providerID: string, modelID?: string): Promise<void> {
+    const config = await Config.load()
+    config.defaultProvider = providerID
+    if (modelID) config.defaultModel = modelID
+    await Config.save(config)
+  },
+
   async getProvider(id: string): Promise<ProviderConfig | undefined> {
     const config = await Config.load()
     return config.providers[id]

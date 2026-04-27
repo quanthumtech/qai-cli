@@ -48,12 +48,30 @@ async function resolveBaseURL(providerID: string): Promise<string | undefined> {
   return cfg?.baseURL
 }
 
+const STATIC_MODELS: Record<string, string[]> = {
+  anthropic: [
+    "claude-opus-4-5",
+    "claude-sonnet-4-5",
+    "claude-haiku-3-5",
+    "claude-opus-4",
+    "claude-sonnet-4",
+  ],
+  google: [
+    "gemini-2.5-pro-preview-05-06",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash",
+  ],
+}
+
 export async function listModels(providerID: string): Promise<string[]> {
+  if (STATIC_MODELS[providerID]) return STATIC_MODELS[providerID]
+
   const key = await resolveKey(providerID)
   if (!key) return []
 
   const cfg = await Config.getProvider(providerID)
-
   const baseURLs: Record<string, string> = {
     openai: "https://api.openai.com/v1",
     groq: "https://api.groq.com/openai/v1",

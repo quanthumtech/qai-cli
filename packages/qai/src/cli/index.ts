@@ -41,6 +41,15 @@ async function handleProviderCmd(args: string[]) {
     infoLine(`Provider '${id}' removed.`)
     return
   }
+  if (sub === "default") {
+    const id = args[1]
+    if (!id) { errorLine("Usage: qai provider default <id> [model]"); return }
+    const model = args[2]
+    await Config.setDefault(id, model)
+    infoLine(`Default provider set to '${id}'${model ? ` with model '${model}'` : ""}.`)
+    infoLine(`Now you can just run: qai`)
+    return
+  }
   infoLine("Usage: qai provider list | set <id> --key <key> [--base-url <url>] | remove <id>")
 }
 
@@ -67,6 +76,7 @@ ${c.bold}Usage:${c.reset}
   qai                                    Interactive chat
   qai serve                              HTTP server (port 4096)
   qai provider list                      List configured providers
+  qai provider default <id> [model]      Set default provider (and model)
   qai provider set <id> --key <key>      Configure a provider
   qai provider remove <id>               Remove a provider
 
@@ -78,7 +88,20 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
 
   // Interactive chat
   const config = await Config.load()
+
+  // Auto-detect provider: if defaultProvider has no key configured but another does, use that one
   let providerID = (process.env.QAI_PROVIDER ?? config.defaultProvider) as ProviderID
+  if (!process.env.QAI_PROVIDER) {
+    const hasKey = (id: string) => !!(config.providers[id]?.apiKey || process.env[
+      ({ anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", google: "GOOGLE_GENERATIVE_AI_API_KEY",
+         groq: "GROQ_API_KEY", mistral: "MISTRAL_API_KEY", nvidia: "NVIDIA_API_KEY" } as Record<string,string>)[id]
+    ])
+    if (!hasKey(providerID)) {
+      const configured = Object.keys(config.providers).find(id => config.providers[id]?.apiKey)
+      if (configured) providerID = configured as ProviderID
+    }
+  }
+
   let modelID = process.env.QAI_MODEL ?? config.defaultModel ?? DEFAULTS[providerID] ?? "gpt-4o"
 
   const session = await Session.create({ cwd: process.cwd(), model: { providerID, modelID } })
@@ -108,22 +131,30 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
       console.log()
       continue
     }
-    if (input === "/model" || input === "/model list") {
+    if (input === "/model" || input === "/model list" || input.startsWith("/model list ")) {
+      const filter = input.startsWith("/model list ") ? input.slice(12).toLowerCase() : ""
       infoLine(`current: ${providerID}/${modelID}`)
       const stopSpin = startSpinner()
-      const models = await listModels(providerID)
+      const allModels = await listModels(providerID)
       stopSpin()
-      if (!models.length) {
+      if (!allModels.length) {
         infoLine("Could not fetch model list. Use: /model <providerID/modelID>")
       } else {
-        models.forEach((m, i) => infoLine(`  ${String(i + 1).padStart(2)}. ${m}${m === modelID ? " ◀" : ""}`))
-        infoLine("Type the number to switch, or press Enter to keep current.")
-        const choice = (await prompt(rl, () => process.stdout.write(c.yellow + "  #   › " + c.reset))).trim()
-        const idx = parseInt(choice, 10) - 1
-        if (!isNaN(idx) && models[idx]) {
-          session.model.modelID = models[idx]
-          modelID = models[idx]
-          infoLine(`Switched to ${modelID}`)
+        const models = filter ? allModels.filter(m => m.toLowerCase().includes(filter)) : allModels
+        if (!models.length) {
+          infoLine(`No models matching "${filter}".`)
+        } else {
+          models.forEach((m, i) => infoLine(`  ${String(i + 1).padStart(2)}. ${m}${m === modelID ? " ◀" : ""}`))
+          if (models.length === allModels.length)
+            infoLine(`Tip: /model list <filter> to narrow down (${allModels.length} total)`)
+          infoLine("Type the number to switch, or press Enter to keep current.")
+          const choice = (await prompt(rl, () => process.stdout.write(c.yellow + "  #   › " + c.reset))).trim()
+          const idx = parseInt(choice, 10) - 1
+          if (!isNaN(idx) && models[idx]) {
+            session.model.modelID = models[idx]
+            modelID = models[idx]
+            infoLine(`Switched to ${modelID}`)
+          }
         }
       }
       console.log()
