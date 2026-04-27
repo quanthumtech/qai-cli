@@ -1,5 +1,8 @@
 # QAI
 
+![QAI CLI](qai-cli-v1.png)
+
+
 QAI é um agente de desenvolvimento com IA, inspirado no [opencode](https://opencode.ai).
 
 ## Stack
@@ -50,6 +53,7 @@ irm 'https://raw.githubusercontent.com/quanthumtech/qai-cli/main/install.ps1' | 
 Após a instalação, rode:
 
 ```bash
+echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
 qai
 ```
 
