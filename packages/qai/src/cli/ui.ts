@@ -18,9 +18,73 @@ export const COLORS = {
   gray: "\x1b[90m",
   white: "\x1b[97m",
   bgBlue: "\x1b[44m",
+  bgGray: "\x1b[100m",
 }
 
 const c = COLORS
+
+// Arrow-key selection menu. Returns selected item or null if cancelled.
+export async function selectMenu(items: string[], current: string): Promise<string | null> {
+  if (!process.stdin.isTTY) return null
+
+  let idx = Math.max(0, items.indexOf(current))
+  const visible = 12 // max rows shown at once
+
+  const draw = () => {
+    const start = Math.max(0, Math.min(idx - Math.floor(visible / 2), items.length - visible))
+    const slice = items.slice(start, start + visible)
+    process.stdout.write("\x1b[?25l") // hide cursor
+    slice.forEach((item, i) => {
+      const abs = start + i
+      const selected = abs === idx
+      const marker = selected ? c.bgGray + c.white + c.bold : c.reset + c.dim
+      const active = item === current ? c.cyan + " ◀" + c.reset : ""
+      process.stdout.write(`\r${marker}  ${item}${c.reset}${active}\x1b[K\n`)
+    })
+    // move cursor back up
+    process.stdout.write(`\x1b[${slice.length}A`)
+  }
+
+  const clear = (n: number) => {
+    for (let i = 0; i < n; i++) process.stdout.write(`\r\x1b[K\n`)
+    process.stdout.write(`\x1b[${n}A`)
+  }
+
+  process.stdin.setRawMode(true)
+  process.stdin.resume()
+  process.stdin.setEncoding("utf8")
+
+  draw()
+
+  return new Promise((resolve) => {
+    const onData = (key: string) => {
+      const sliceLen = Math.min(visible, items.length)
+      if (key === "\x1b[A" || key === "\x1b[D") { // up / left
+        idx = (idx - 1 + items.length) % items.length
+        clear(sliceLen); draw()
+      } else if (key === "\x1b[B" || key === "\x1b[C") { // down / right
+        idx = (idx + 1) % items.length
+        clear(sliceLen); draw()
+      } else if (key === "\r" || key === "\n") { // enter
+        clear(sliceLen)
+        process.stdin.removeListener("data", onData)
+        process.stdin.setRawMode(false)
+        process.stdout.write("\x1b[?25h") // show cursor
+        // drain any buffered input before resuming readline
+        process.stdin.pause()
+        setTimeout(() => resolve(items[idx]), 10)
+      } else if (key === "\x03" || key === "\x1b") { // ctrl+c / esc
+        clear(sliceLen)
+        process.stdin.removeListener("data", onData)
+        process.stdin.setRawMode(false)
+        process.stdout.write("\x1b[?25h")
+        process.stdin.pause()
+        setTimeout(() => resolve(null), 10)
+      }
+    }
+    process.stdin.on("data", onData)
+  })
+}
 
 export function printLogo(providerID: string, modelID: string, agentID: string = "dev") {
   console.clear()

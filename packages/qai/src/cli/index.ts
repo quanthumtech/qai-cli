@@ -2,7 +2,7 @@ import * as readline from "readline"
 import { Session } from "../session/index"
 import { Config } from "../config/index"
 import { DEFAULTS, type ProviderID, listModels } from "../provider/index"
-import { printLogo, userPrompt, startSpinner, errorLine, infoLine, renderMarkdown, COLORS as c } from "./ui"
+import { printLogo, userPrompt, startSpinner, errorLine, infoLine, renderMarkdown, selectMenu, COLORS as c } from "./ui"
 import { loadAgents, type AgentID } from "../agent/agents"
 
 async function prompt(rl: readline.Interface, draw: () => void): Promise<string> {
@@ -205,7 +205,6 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
     }
     if (input === "/model" || input === "/model list" || input.startsWith("/model list ")) {
       const filter = input.startsWith("/model list ") ? input.slice(12).toLowerCase() : ""
-      infoLine(`current: ${providerID}/${modelID}`)
       const stopSpin = startSpinner()
       const allModels = await listModels(providerID)
       stopSpin()
@@ -216,16 +215,15 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
         if (!models.length) {
           infoLine(`No models matching "${filter}".`)
         } else {
-          models.forEach((m, i) => infoLine(`  ${String(i + 1).padStart(2)}. ${m}${m === modelID ? " ◀" : ""}`))
-          if (models.length === allModels.length)
-            infoLine(`Tip: /model list <filter> to narrow down (${allModels.length} total)`)
-          infoLine("Type the number to switch, or press Enter to keep current.")
-          const choice = (await prompt(rl, () => process.stdout.write(c.yellow + "  #   › " + c.reset))).trim()
-          const idx = parseInt(choice, 10) - 1
-          if (!isNaN(idx) && models[idx]) {
-            session.model.modelID = models[idx]
-            modelID = models[idx]
-            infoLine(`Switched to ${modelID}`)
+          infoLine(`current: ${providerID}/${modelID} — use ↑↓ to select, Enter to confirm, Esc to cancel`)
+          rl.pause()
+          const selected = await selectMenu(models, modelID)
+          rl.resume()
+          if (selected && selected !== modelID) {
+            session.model.modelID = selected
+            modelID = selected
+            await Config.setDefault(providerID, modelID)
+            printLogo(providerID, modelID, session.agentID)
           }
         }
       }
