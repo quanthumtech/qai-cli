@@ -82,7 +82,7 @@ export async function runCLI() {
     return
   }
 
-
+  if (cmd === "--help" || cmd === "-h") {
     console.log(`
 ${c.cyan}${c.bold}QAI${c.reset} — AI coding agent
 
