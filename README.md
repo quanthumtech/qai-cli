@@ -33,13 +33,28 @@ qai/
 
 ## Instalação
 
+**Linux / macOS**
+
 ```bash
-bun install
+curl -fsSL https://raw.githubusercontent.com/quanthumtech/qai-cli/main/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm 'https://raw.githubusercontent.com/quanthumtech/qai-cli/main/install.ps1' | iex
+```
+
+Após a instalação, rode:
+
+```bash
+qai
 ```
 
 ## Desenvolvimento
 
 ```bash
+bun install
 bun dev
 ```
 
