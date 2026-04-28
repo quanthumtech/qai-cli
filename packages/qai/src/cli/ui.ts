@@ -102,7 +102,7 @@ export function printLogo(providerID: string, modelID: string, agentID: string =
   console.log()
 }
 
-function statusBar(): string {
+export function statusBar(): string {
   const width = process.stdout.columns || 80
   const home = process.env.HOME || ""
   const cwd = process.cwd()
@@ -173,7 +173,6 @@ function formatInline(text: string): string {
 
 
 export function userPrompt() {
-  console.log(statusBar())
   process.stdout.write(c.green + c.bold + "  you  " + c.reset + c.white + "› " + c.reset)
 }
 

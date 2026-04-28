@@ -2,12 +2,79 @@ import * as readline from "readline"
 import { Session } from "../session/index"
 import { Config } from "../config/index"
 import { DEFAULTS, type ProviderID, listModels } from "../provider/index"
-import { printLogo, userPrompt, startSpinner, errorLine, infoLine, renderMarkdown, selectMenu, COLORS as c } from "./ui"
+import { printLogo, userPrompt, statusBar, startSpinner, errorLine, infoLine, renderMarkdown, selectMenu, COLORS as c } from "./ui"
 import { loadAgents, type AgentID } from "../agent/agents"
 
+const COMMANDS = [
+  "/help", "/agents", "/agents dev", "/agents architect",
+  "/provider", "/provider list", "/provider set", "/provider default", "/provider remove",
+  "/model", "/model list", "/model set",
+  "/clear", "exit",
+]
+
 async function prompt(rl: readline.Interface, draw: () => void): Promise<string> {
-  draw()
-  return new Promise((resolve) => rl.once("line", resolve))
+  // Use raw input with autocomplete only when stdin is a TTY
+  if (!process.stdin.isTTY) {
+    draw()
+    return new Promise((resolve) => rl.once("line", resolve))
+  }
+
+  return new Promise((resolve) => {
+    let buf = ""
+    let suggestion = ""
+
+    const getSuggestion = (input: string): string => {
+      if (!input.startsWith("/")) return ""
+      const match = COMMANDS.find(c => c.startsWith(input) && c !== input)
+      return match ? match.slice(input.length) : ""
+    }
+
+    const redraw = () => {
+      suggestion = getSuggestion(buf)
+      // move up 1 line (statusBar), clear to end of screen, reprint
+      process.stdout.write(`\x1b[1A\r\x1b[J${statusBar()}\n\r\x1b[K`)
+      draw()
+      process.stdout.write(buf)
+      if (suggestion) process.stdout.write(`\x1b[2m${suggestion}\x1b[0m\x1b[${suggestion.length}D`)
+    }
+
+    process.stdin.setRawMode(true)
+    process.stdin.resume()
+    process.stdin.setEncoding("utf8")
+    // initial draw
+    process.stdout.write(`${statusBar()}\n`)
+    draw()
+    process.stdout.write(buf)
+
+    const onData = (key: string) => {
+      if (key === "\r" || key === "\n") {
+        process.stdout.write("\n")
+        process.stdin.removeListener("data", onData)
+        process.stdin.setRawMode(false)
+        process.stdin.pause()
+        resolve(buf)
+      } else if (key === "\x03") { // ctrl+c
+        process.stdout.write("\n")
+        process.stdin.removeListener("data", onData)
+        process.stdin.setRawMode(false)
+        process.stdin.pause()
+        resolve("exit")
+      } else if (key === "\t") { // tab — accept suggestion
+        if (suggestion) { buf += suggestion; suggestion = "" }
+        redraw()
+      } else if (key === "\x7f" || key === "\b") { // backspace
+        buf = buf.slice(0, -1)
+        redraw()
+      } else if (key.startsWith("\x1b")) { // escape sequences — ignore
+        // do nothing
+      } else {
+        buf += key
+        redraw()
+      }
+    }
+
+    process.stdin.on("data", onData)
+  })
 }
 
 async function handleProviderCmd(args: string[]) {

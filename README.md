@@ -120,6 +120,8 @@ O agente aparece automaticamente no `/agents` sem precisar alterar código.
 /provider set <id> --key <key> Configura um provedor
 /provider default <id>         Define o provedor padrão
 /model <providerID/modelID>    Troca o modelo
+/model set <providerID/modelID>    Define o modelo padrão para a sessão
+/model list    Lista os modelos disponíveis para o provedor configurado
 /clear                         Limpa o histórico da sessão
 exit                           Encerra o chat
 ```
