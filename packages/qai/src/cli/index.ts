@@ -272,7 +272,11 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
 
     // Slash commands
     if (input === "/help") {
-      infoLine("Commands: /help  /doc  /agents  /provider  /model <providerID/modelID>  /clear  exit")
+      infoLine("Commands: /help /doc /agents /provider /model <providerID/modelID> /clear exit")
+      infoLine("")
+      infoLine("  /doc <descrição>  - Gera documentação do projeto")
+      infoLine("                     Ex: /doc crie documentação em docx")
+      infoLine("                     Salva em: diretório configurado ou perguntado")
       console.log()
       continue
     }
@@ -481,6 +485,25 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
       const mdFile = path.join(saveDir, `${baseName}.md`)
       const outputFile = path.join(saveDir, `${baseName}.${outputExt}`)
 
+      // Detecta qual engine PDF está disponível
+      let pdfEngine: string | null = null
+      if (outputExt === "pdf") {
+        const engines = [
+          { cmd: "pdflatex", name: "pdflatex" },
+          { cmd: "xelatex", name: "xelatex" },
+          { cmd: "lualatex", name: "lualatex" },
+          { cmd: "wkhtmltopdf", name: "wkhtmltopdf" },
+          { cmd: "weasyprint", name: "weasyprint" },
+        ]
+        for (const engine of engines) {
+          const check = Bun.spawnSync({ cmd: ["which", engine.cmd], stdout: "pipe", stderr: "pipe" })
+          if (check.exitCode === 0) {
+            pdfEngine = engine.name
+            break
+          }
+        }
+      }
+
       infoLine(`Gerando documentação em ${outputExt.toUpperCase()}...`)
       const spinner = startSpinner()
 
@@ -506,7 +529,7 @@ Responda APENAS com o conteúdo markdown, sem explicações adicionais.`
         if (outputExt !== "md") {
           const { DocTool } = await import("../tool/doc")
           await DocTool.execute(
-            { input: mdFile, output: outputFile, format: outputExt as any },
+            { input: mdFile, output: outputFile, format: outputExt as any, pdfEngine: pdfEngine || undefined },
             { sessionID: session.id, cwd: process.cwd() },
           )
           spinner.stop()
