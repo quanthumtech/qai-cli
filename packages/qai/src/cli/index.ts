@@ -1,5 +1,4 @@
 import * as readline from "readline"
-readline.emitKeypressEvents(process.stdin)
 import { Session } from "../session/index"
 import { Config } from "../config/index"
 import { DEFAULTS, type ProviderID, listModels } from "../provider/index"
@@ -35,84 +34,10 @@ const COMMANDS = [
 ]
 
 async function prompt(rl: readline.Interface, draw: () => void, abortController?: AbortController): Promise<string> {
-  // Use raw input with autocomplete only when stdin is a TTY
-  if (!process.stdin.isTTY) {
-    draw()
-    return new Promise((resolve) => rl.once("line", resolve))
-  }
-
   return new Promise((resolve) => {
-    let buf = ""
-    let suggestion = ""
-    let lastEscTime = 0
-
-    const getSuggestion = (input: string): string => {
-      if (!input.startsWith("/")) return ""
-      const match = COMMANDS.find((c) => c.startsWith(input) && c !== input)
-      return match ? match.slice(input.length) : ""
-    }
-
-    const redraw = () => {
-      suggestion = getSuggestion(buf)
-      // move up 1 line (statusBar), clear to end of screen, reprint
-      process.stdout.write(`\x1b[1A\r\x1b[J${statusBar()}\n\r\x1b[K`)
-      draw()
-      process.stdout.write(buf)
-      if (suggestion) process.stdout.write(`\x1b[2m${suggestion}\x1b[0m\x1b[${suggestion.length}D`)
-    }
-
-    process.stdin.setRawMode(true)
-    process.stdin.resume()
-    process.stdin.setEncoding("utf8")
-    // initial draw
-    process.stdout.write(`${statusBar()}\n`)
-    draw()
-    process.stdout.write(buf)
-
-    const onData = (key: string) => {
-      if (key === "\r" || key === "\n") {
-        process.stdout.write("\n")
-        process.stdin.removeListener("data", onData)
-        process.stdin.setRawMode(false)
-        process.stdin.pause()
-        resolve(buf)
-      } else if (key === "\x03") {
-        // ctrl+c
-        process.stdout.write("\n")
-        process.stdin.removeListener("data", onData)
-        process.stdin.setRawMode(false)
-        process.stdin.pause()
-        resolve("exit")
-      } else if (key === "\t") {
-        // tab — accept suggestion
-        if (suggestion) {
-          buf += suggestion
-          suggestion = ""
-        }
-        redraw()
-      } else if (key === "\x7f" || key === "\b") {
-        // backspace
-        buf = buf.slice(0, -1)
-        redraw()
-      } else if (key.startsWith("\x1b")) {
-        // escape - double press to abort
-        const now = Date.now()
-        if (now - lastEscTime < 500) {
-          abortController?.abort()
-          process.stdout.write("\n" + c.yellow + "Aborted" + c.reset + "\n")
-          process.stdin.removeListener("data", onData)
-          process.stdin.setRawMode(false)
-          process.stdin.pause()
-          resolve("/abort")
-        }
-        lastEscTime = now
-      } else {
-        buf += key
-        redraw()
-      }
-    }
-
-    process.stdin.on("data", onData)
+    rl.question(c.green + c.bold + "  you  " + c.reset + c.white + "› " + c.reset, (input) => {
+      resolve(input)
+    })
   })
 }
 
@@ -277,7 +202,16 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
 
   printLogo(providerID, modelID, session.agentID)
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false })
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true,
+    completer: (line: string) => {
+      if (!line.startsWith("/")) return [[], line]
+      const hits = COMMANDS.filter((c) => c.startsWith(line))
+      return [hits.length ? hits : [], line]
+    },
+  })
 
   let currentAbortController: AbortController | undefined = undefined
   type SpinnerType = { stop: () => void; setCancelHint: (show: boolean) => void }

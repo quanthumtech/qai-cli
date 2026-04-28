@@ -67,6 +67,10 @@ export const Session = {
     return messages.get(sessionID) ?? []
   },
 
+  async getMessageCount(sessionID: string): Promise<number> {
+    return messages.get(sessionID)?.length ?? 0
+  },
+
   async chat(sessionID: string, content: string, opts?: { abortSignal?: AbortSignal }): Promise<Message> {
     const session = sessions.get(sessionID)
     if (!session) throw new Error(`Session ${sessionID} not found`)
@@ -74,9 +78,11 @@ export const Session = {
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content, createdAt: Date.now() }
     messages.get(sessionID)!.push(userMsg)
 
-    const history = messages
-      .get(sessionID)!
-      .slice(0, -1) // exclude the user message just added
+    const allMessages = messages.get(sessionID)!
+    const maxHistory = 10
+    const history = allMessages
+      .slice(0, -1)
+      .slice(-maxHistory)
       .map((m) => ({ role: m.role, content: m.content }) as import("ai").CoreMessage)
 
     const reply = await runAgent({
