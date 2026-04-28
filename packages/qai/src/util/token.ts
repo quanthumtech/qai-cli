@@ -59,6 +59,9 @@ export function truncateMessages(
   providerID: string,
   systemPrompt = "",
 ): TruncationResult {
+  // Ensure maxTokens is never negative or too small
+  const safeMaxTokens = Math.max(maxTokens, 1000)
+
   if (messages.length === 0) {
     return { messages: [], droppedCount: 0, wasTruncated: false }
   }
@@ -72,7 +75,7 @@ export function truncateMessages(
     totalTokens += tokens
   }
 
-  if (totalTokens <= maxTokens) {
+  if (totalTokens <= safeMaxTokens) {
     return { messages, droppedCount: 0, wasTruncated: false }
   }
 
@@ -80,7 +83,7 @@ export function truncateMessages(
   let currentTokens = 0
 
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (currentTokens + messageTokens[i] <= maxTokens) {
+    if (currentTokens + messageTokens[i] <= safeMaxTokens) {
       keptMessages.unshift(messages[i])
       currentTokens += messageTokens[i]
     }

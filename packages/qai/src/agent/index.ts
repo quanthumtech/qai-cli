@@ -10,6 +10,7 @@ import { GrepTool } from "../tool/grep"
 import { DocTool } from "../tool/doc"
 import type { Tool } from "../tool/tool"
 import { loadAgents, DEFAULT_AGENT, type AgentID } from "./agents"
+import { DEFAULT_TOKEN_LIMITS, estimateTokens } from "../util/token"
 
 const AVAILABLE_TOOLS = ["read", "write", "edit", "bash", "glob", "grep", "doc"]
 
@@ -86,6 +87,19 @@ export async function runAgent(opts: {
     })
   }
 
+  const providerID = opts.model.providerID
+  const tokenLimit = DEFAULT_TOKEN_LIMITS[providerID] ?? 32000
+
+  // Calculate max tokens for response - ensure positive value
+  const promptTokens = estimateTokens(opts.prompt, providerID)
+  const historyTokens = opts.history.reduce(
+    (sum, m) => sum + estimateTokens(typeof m.content === "string" ? m.content : JSON.stringify(m.content), providerID),
+    0,
+  )
+  const systemTokens = estimateTokens(agentPrompt, providerID)
+  const totalInputTokens = promptTokens + historyTokens + systemTokens
+  const maxResponseTokens = Math.max(4000, tokenLimit - totalInputTokens)
+
   try {
     let result = await generateText({
       model,
@@ -93,6 +107,7 @@ export async function runAgent(opts: {
       messages: [...opts.history, { role: "user", content: opts.prompt }],
       tools,
       maxSteps: 20,
+      maxTokens: maxResponseTokens,
       abortSignal: opts.abortSignal,
       onStepFinish({ text }) {
         if (text && opts.onText) opts.onText(text)
@@ -145,6 +160,7 @@ export async function runAgent(opts: {
         messages: [...opts.history.slice(-6), { role: "user", content: opts.prompt }],
         tools,
         maxSteps: 20,
+        maxTokens: 8000, // Fixed value for retries
         abortSignal: opts.abortSignal,
       })
 

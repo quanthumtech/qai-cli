@@ -88,7 +88,8 @@ export const Session = {
     const providerID = session.model.providerID
     const tokenLimit = DEFAULT_TOKEN_LIMITS[providerID] ?? 32000
     const buffer = Math.floor(tokenLimit * 0.3)
-    const effectiveLimit = Math.max(tokenLimit - buffer, 5000)
+    // Ensure effectiveLimit is never negative or too small
+    const effectiveLimit = Math.max(Math.max(tokenLimit - buffer, 5000), 1000)
 
     const { loadAgents, DEFAULT_AGENT } = await import("../agent/agents")
     const agents = await loadAgents()
@@ -99,7 +100,8 @@ export const Session = {
     const contextTokens = countContextTokens(history, systemPrompt, content, providerID)
 
     let finalHistory = history
-    if (contextTokens > effectiveLimit) {
+    // Only truncate if context exceeds limit with safety margin
+    if (contextTokens > effectiveLimit && effectiveLimit > 0) {
       const truncated = truncateMessages(history, effectiveLimit, providerID, systemPrompt)
       if (truncated.wasTruncated) {
         finalHistory = truncated.messages

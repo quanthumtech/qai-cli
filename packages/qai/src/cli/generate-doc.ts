@@ -1,7 +1,7 @@
 import path from "path"
 import fs from "fs"
 import { DocTool } from "../tool/doc"
-import { ToolContext } from "../tool/tool"
+import { Tool } from "../tool/tool"
 
 /**
  * Simple CLI utility to generate a DOCX documentation file for the project.
@@ -10,7 +10,7 @@ import { ToolContext } from "../tool/tool"
  */
 export async function generateDoc({ input = "README.md", output }: { input?: string; output: string }) {
   const cwd = process.cwd()
-  const ctx: ToolContext = { cwd, env: process.env }
+  const ctx: Tool.Context = { sessionID: "doc-gen", cwd }
 
   // Resolve input markdown file
   const inputPath = path.isAbsolute(input) ? input : path.resolve(cwd, input)
