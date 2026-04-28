@@ -7,10 +7,11 @@ import { EditTool } from "../tool/edit"
 import { BashTool } from "../tool/bash"
 import { GlobTool } from "../tool/glob"
 import { GrepTool } from "../tool/grep"
+import { DocTool } from "../tool/doc"
 import type { Tool } from "../tool/tool"
 import { loadAgents, DEFAULT_AGENT, type AgentID } from "./agents"
 
-const AVAILABLE_TOOLS = ["read", "write", "edit", "bash", "glob", "grep"]
+const AVAILABLE_TOOLS = ["read", "write", "edit", "bash", "glob", "grep", "doc"]
 
 const TOOL_HINTS: Record<string, string> = {
   ls: "Use 'glob' or 'bash' with 'ls' command instead",
@@ -70,6 +71,7 @@ export async function runAgent(opts: {
     bash: wrapTool({ ...BashTool, execute: (p: any) => BashTool.execute(p, ctx) }),
     glob: wrapTool({ ...GlobTool, execute: (p: any) => GlobTool.execute(p, ctx) }),
     grep: wrapTool({ ...GrepTool, execute: (p: any) => GrepTool.execute(p, ctx) }),
+    doc: wrapTool({ ...DocTool, execute: (p: any) => DocTool.execute(p, ctx) }),
   }
 
   // Restrict tools to what the agent declares

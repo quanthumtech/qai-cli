@@ -1,4 +1,6 @@
 import * as readline from "readline"
+import * as path from "path"
+import * as fs from "fs"
 import { Session } from "../session/index"
 import { Config } from "../config/index"
 import { DEFAULTS, type ProviderID, listModels } from "../provider/index"
@@ -9,6 +11,7 @@ import {
   startSpinner,
   errorLine,
   infoLine,
+  successLine,
   renderMarkdown,
   selectMenu,
   COLORS as c,
@@ -26,6 +29,9 @@ const COMMANDS = [
   "/provider default",
   "/provider remove",
   "/connect",
+  "/doc",
+  "/doc ",
+  "/docsys",
   "/model",
   "/model list",
   "/model set",
@@ -266,7 +272,7 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
 
     // Slash commands
     if (input === "/help") {
-      infoLine("Commands: /help  /agents  /provider  /model <providerID/modelID>  /clear  exit")
+      infoLine("Commands: /help  /doc  /agents  /provider  /model <providerID/modelID>  /clear  exit")
       console.log()
       continue
     }
@@ -393,6 +399,125 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
         infoLine(`Switched to ${pid}/${mid}`)
       } else {
         infoLine(`Restart with: QAI_PROVIDER=${pid} qai`)
+      }
+      console.log()
+      continue
+    }
+    if (input === "/doc" || input.startsWith("/doc ")) {
+      // Parse a instrução para determinar o formato de saída
+      const instruction = input === "/doc" ? "gere documentação detalhada do projeto" : input.slice(5).trim()
+      const lowerInstr = instruction.toLowerCase()
+      let outputExt = "md"
+      if (lowerInstr.includes("pdf")) outputExt = "pdf"
+      else if (lowerInstr.includes("docx")) outputExt = "docx"
+      else if (lowerInstr.includes("html")) outputExt = "html"
+
+      // Função auxiliar para converter caminhos Windows em caminhos WSL
+      function convertWindowsPath(winPath: string): string {
+        // Converte C:\Users\... para /mnt/c/Users/...
+        const match = winPath.match(/^([a-zA-Z]):([\\\/](.*))?$/)
+        if (match) {
+          const drive = match[1].toLowerCase()
+          const rest = (match[3] || "").replace(/\\/g, "/")
+          return `/mnt/${drive}/${rest}`
+        }
+        return winPath
+      }
+
+      // Pergunta o diretório com validação
+      let saveDir: string | null = null
+      while (!saveDir) {
+        infoLine("Em qual diretório deseja salvar? (padrão: diretório atual)")
+        infoLine("Use caminho absoluto (ex: /home/user/docs) ou relativo (ex: ../docs):")
+        infoLine("No WSL, caminhos Windows como C:\\Users\\docs funcionam automaticamente")
+        const dirAnswer = await new Promise<string>((resolve) => {
+          const h = (ans: string) => {
+            rl.removeListener("line", h)
+            resolve(ans.trim())
+          }
+          rl.on("line", h)
+        })
+
+        // Se vazio, usa diretório atual
+        if (!dirAnswer) {
+          saveDir = process.cwd()
+          break
+        }
+
+        // Converte caminho Windows se necessário
+        let resolvedPath = convertWindowsPath(dirAnswer)
+
+        // Resolve caminho relativo para absoluto
+        if (!path.isAbsolute(resolvedPath)) {
+          resolvedPath = path.resolve(resolvedPath)
+        }
+
+        // Verifica se o caminho é válido e acessível
+        try {
+          // Verifica se o diretório pai existe ou pode ser criado
+          const parentDir = path.dirname(resolvedPath)
+          if (!fs.existsSync(parentDir)) {
+            errorLine(`Diretório pai não existe: ${parentDir}`)
+            infoLine("Deseja tentar outro caminho? (Enter para usar diretório atual)")
+            continue
+          }
+
+          // Tenta criar o diretório se não existir
+          if (!fs.existsSync(resolvedPath)) {
+            fs.mkdirSync(resolvedPath, { recursive: true })
+          }
+
+          // Verifica permissão de escrita
+          fs.accessSync(resolvedPath, fs.constants.W_OK)
+          saveDir = resolvedPath
+        } catch (err: any) {
+          errorLine(`Caminho inválido ou sem permissão: ${err.message}`)
+          infoLine("Deseja tentar outro caminho? (Enter para usar diretório atual)")
+        }
+      }
+
+      const timestamp = new Date().toISOString().slice(0, 10)
+      const baseName = `documentacao-${timestamp}`
+      const mdFile = path.join(saveDir, `${baseName}.md`)
+      const outputFile = path.join(saveDir, `${baseName}.${outputExt}`)
+
+      infoLine(`Gerando documentação em ${outputExt.toUpperCase()}...`)
+      const spinner = startSpinner()
+
+      try {
+        // Gera conteúdo markdown via agente
+        const mdInstruction = `${instruction}. Crie uma documentação completa em formato Markdown com:
+- Título do projeto
+- Descrição geral
+- Estrutura do projeto
+- Instruções de instalação
+- Exemplos de uso
+- API/Comandos disponíveis
+
+Responda APENAS com o conteúdo markdown, sem explicações adicionais.`
+
+        const reply = await Session.chat(session.id, mdInstruction, {})
+        const mdContent = reply.content
+
+        // Salva o markdown
+        fs.writeFileSync(mdFile, mdContent, "utf-8")
+
+        // Converte para o formato desejado usando pandoc
+        if (outputExt !== "md") {
+          const { DocTool } = await import("../tool/doc")
+          await DocTool.execute(
+            { input: mdFile, output: outputFile, format: outputExt as any },
+            { sessionID: session.id, cwd: process.cwd() },
+          )
+          spinner.stop()
+          successLine(`✅ Documentação gerada: ${outputFile}`)
+        } else {
+          spinner.stop()
+          successLine(`✅ Documentação gerada: ${mdFile}`)
+        }
+      } catch (err: any) {
+        spinner.stop()
+        errorLine(`Erro: ${err.message}`)
       }
       console.log()
       continue
