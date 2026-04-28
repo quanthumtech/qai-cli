@@ -34,10 +34,16 @@ const COMMANDS = [
 ]
 
 async function prompt(rl: readline.Interface, draw: () => void, abortController?: AbortController): Promise<string> {
+  const status = statusBar()
+  process.stdout.write(
+    "\r\x1b[J" + (status ? status + "\n" : "") + c.green + c.bold + "  you  " + c.reset + c.white + "› " + c.reset,
+  )
   return new Promise((resolve) => {
-    rl.question(c.green + c.bold + "  you  " + c.reset + c.white + "› " + c.reset, (input) => {
+    const handler = (input: string) => {
+      rl.removeListener("line", handler)
       resolve(input)
-    })
+    }
+    rl.on("line", handler)
   })
 }
 

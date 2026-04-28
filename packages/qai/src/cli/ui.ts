@@ -277,7 +277,7 @@ export function printLogo(providerID: string, modelID: string, agentID: string =
   console.log(c.gray + "  ─────────────────────────────────────" + c.reset)
   console.log()
   console.log(c.dim + "  Type your message and press Enter. Type 'exit' to quit." + c.reset)
-  console.log(c.dim + "  Commands: /help  /agents  /provider  /model <id>  /clear" + c.reset)
+  console.log(c.dim + "  Commands: /help  /agents  /providers  /connect  /model  /clear  /exit" + c.reset)
   console.log()
 }
 

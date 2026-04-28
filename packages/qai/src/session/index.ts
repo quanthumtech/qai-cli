@@ -87,13 +87,14 @@ export const Session = {
 
     const providerID = session.model.providerID
     const tokenLimit = DEFAULT_TOKEN_LIMITS[providerID] ?? 32000
-    const buffer = 2000
-    const effectiveLimit = tokenLimit - buffer
+    const buffer = Math.floor(tokenLimit * 0.3)
+    const effectiveLimit = Math.max(tokenLimit - buffer, 5000)
 
     const { loadAgents, DEFAULT_AGENT } = await import("../agent/agents")
     const agents = await loadAgents()
     const agent = agents[session.agentID as string] ?? agents[DEFAULT_AGENT]
-    const systemPrompt = agent?.systemPrompt ?? ""
+    const maxSystemTokens = 3000
+    const systemPrompt = (agent?.systemPrompt ?? "").slice(0, maxSystemTokens * 4)
 
     const contextTokens = countContextTokens(history, systemPrompt, content, providerID)
 

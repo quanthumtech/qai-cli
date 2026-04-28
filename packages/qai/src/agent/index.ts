@@ -60,6 +60,9 @@ export async function runAgent(opts: {
   const agents = await loadAgents()
   const agent = agents[opts.agentID ?? DEFAULT_AGENT] ?? agents[DEFAULT_AGENT]
 
+  const maxSystemTokens = 4000
+  const agentPrompt = agent.systemPrompt.slice(0, maxSystemTokens * 4)
+
   const allTools = {
     read: wrapTool({ ...ReadTool, execute: (p: any) => ReadTool.execute(p, ctx) }),
     write: wrapTool({ ...WriteTool, execute: (p: any) => WriteTool.execute(p, ctx) }),
@@ -84,7 +87,7 @@ export async function runAgent(opts: {
   try {
     let result = await generateText({
       model,
-      system: agent.systemPrompt + `\nThe current working directory is: ${opts.cwd}`,
+      system: agentPrompt + `\nThe current working directory is: ${opts.cwd}`,
       messages: [...opts.history, { role: "user", content: opts.prompt }],
       tools,
       maxSteps: 20,
@@ -130,7 +133,9 @@ export async function runAgent(opts: {
       const attemptNum =
         opts.history.filter((m) => m.role === "system" && m.content.includes("RETRY_ATTEMPT")).length + 1
 
-      const retrySystem = `${agent.systemPrompt}\n\n[RETRY_ATTEMPT ${attemptNum}] Previous request had an error: ${errMsg.slice(0, 200)}\nThe current working directory is: ${opts.cwd}`
+      const retryHistory = opts.history.slice(-6).filter((m) => m.role !== "system")
+      const shortSystem = agent.systemPrompt.slice(0, 2000)
+      const retrySystem = `${shortSystem}\n\n[RETRY_ATTEMPT ${attemptNum}] Previous error: ${errMsg.slice(0, 150)}\nThe current working directory is: ${opts.cwd}`
 
       const retryResult = await generateText({
         model,
