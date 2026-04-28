@@ -67,16 +67,17 @@ export const Session = {
     return messages.get(sessionID) ?? []
   },
 
-  async chat(sessionID: string, content: string): Promise<Message> {
+  async chat(sessionID: string, content: string, opts?: { abortSignal?: AbortSignal }): Promise<Message> {
     const session = sessions.get(sessionID)
     if (!session) throw new Error(`Session ${sessionID} not found`)
 
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content, createdAt: Date.now() }
     messages.get(sessionID)!.push(userMsg)
 
-    const history = messages.get(sessionID)!
+    const history = messages
+      .get(sessionID)!
       .slice(0, -1) // exclude the user message just added
-      .map(m => ({ role: m.role, content: m.content }) as import("ai").CoreMessage)
+      .map((m) => ({ role: m.role, content: m.content }) as import("ai").CoreMessage)
 
     const reply = await runAgent({
       prompt: content,
@@ -85,6 +86,7 @@ export const Session = {
       cwd: session.cwd,
       sessionID,
       agentID: session.agentID as AgentID,
+      abortSignal: opts?.abortSignal,
     })
 
     const assistantMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: reply, createdAt: Date.now() }

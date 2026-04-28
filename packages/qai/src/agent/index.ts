@@ -26,6 +26,7 @@ export async function runAgent(opts: {
   sessionID: string
   agentID?: AgentID
   onText?: (text: string) => void
+  abortSignal?: AbortSignal
 }): Promise<string> {
   const ctx = { sessionID: opts.sessionID, cwd: opts.cwd }
   const agents = await loadAgents()
@@ -41,11 +42,16 @@ export async function runAgent(opts: {
   }
 
   // Restrict tools to what the agent declares
-  const tools = Object.fromEntries(
-    Object.entries(allTools).filter(([k]) => agent.tools.includes(k))
-  )
+  const tools = Object.fromEntries(Object.entries(allTools).filter(([k]) => agent.tools.includes(k)))
 
   const model = await getModel(opts.model)
+
+  const controller = opts.abortSignal ? { aborted: false } : null
+  if (opts.abortSignal) {
+    opts.abortSignal.addEventListener("abort", () => {
+      if (controller) controller.aborted = true
+    })
+  }
 
   const { text, steps } = await generateText({
     model,
@@ -53,14 +59,30 @@ export async function runAgent(opts: {
     messages: [...opts.history, { role: "user", content: opts.prompt }],
     tools,
     maxSteps: 20,
+    abortSignal: opts.abortSignal,
     onStepFinish({ text }) {
       if (text && opts.onText) opts.onText(text)
+      if (opts.abortSignal?.aborted) {
+        const err = new Error("Aborted")
+        err.name = "AbortError"
+        throw err
+      }
     },
   })
 
+  if (opts.abortSignal?.aborted) {
+    const err = new Error("Aborted")
+    err.name = "AbortError"
+    throw err
+  }
+
   // If the last step was a tool call with no final text, collect text from all steps
   if (!text) {
-    const allText = steps.map(s => s.text).filter(Boolean).join("\n").trim()
+    const allText = steps
+      .map((s) => s.text)
+      .filter(Boolean)
+      .join("\n")
+      .trim()
     return allText || "(no response)"
   }
 

@@ -59,13 +59,18 @@ export async function selectMenu(items: string[], current: string): Promise<stri
   return new Promise((resolve) => {
     const onData = (key: string) => {
       const sliceLen = Math.min(visible, items.length)
-      if (key === "\x1b[A" || key === "\x1b[D") { // up / left
+      if (key === "\x1b[A" || key === "\x1b[D") {
+        // up / left
         idx = (idx - 1 + items.length) % items.length
-        clear(sliceLen); draw()
-      } else if (key === "\x1b[B" || key === "\x1b[C") { // down / right
+        clear(sliceLen)
+        draw()
+      } else if (key === "\x1b[B" || key === "\x1b[C") {
+        // down / right
         idx = (idx + 1) % items.length
-        clear(sliceLen); draw()
-      } else if (key === "\r" || key === "\n") { // enter
+        clear(sliceLen)
+        draw()
+      } else if (key === "\r" || key === "\n") {
+        // enter
         clear(sliceLen)
         process.stdin.removeListener("data", onData)
         process.stdin.setRawMode(false)
@@ -73,7 +78,8 @@ export async function selectMenu(items: string[], current: string): Promise<stri
         // drain any buffered input before resuming readline
         process.stdin.pause()
         setTimeout(() => resolve(items[idx]), 10)
-      } else if (key === "\x03" || key === "\x1b") { // ctrl+c / esc
+      } else if (key === "\x03" || key === "\x1b") {
+        // ctrl+c / esc
         clear(sliceLen)
         process.stdin.removeListener("data", onData)
         process.stdin.setRawMode(false)
@@ -144,18 +150,36 @@ export function renderMarkdown(text: string): string {
     }
 
     // Headers
-    if (line.startsWith("### ")) { out.push(c.cyan + c.bold + "  " + line.slice(4) + c.reset); continue }
-    if (line.startsWith("## "))  { out.push(c.cyan + c.bold + "  " + line.slice(3) + c.reset); continue }
-    if (line.startsWith("# "))   { out.push(c.cyan + c.bold + "  " + line.slice(2) + c.reset); continue }
+    if (line.startsWith("### ")) {
+      out.push(c.cyan + c.bold + "  " + line.slice(4) + c.reset)
+      continue
+    }
+    if (line.startsWith("## ")) {
+      out.push(c.cyan + c.bold + "  " + line.slice(3) + c.reset)
+      continue
+    }
+    if (line.startsWith("# ")) {
+      out.push(c.cyan + c.bold + "  " + line.slice(2) + c.reset)
+      continue
+    }
 
     // Bullet
-    if (line.match(/^[-*] /)) { out.push("  " + c.cyan + "•" + c.reset + " " + formatInline(line.slice(2))); continue }
+    if (line.match(/^[-*] /)) {
+      out.push("  " + c.cyan + "•" + c.reset + " " + formatInline(line.slice(2)))
+      continue
+    }
 
     // Numbered list
-    if (line.match(/^\d+\. /)) { out.push("  " + formatInline(line)); continue }
+    if (line.match(/^\d+\. /)) {
+      out.push("  " + formatInline(line))
+      continue
+    }
 
     // Blank line
-    if (line.trim() === "") { out.push(""); continue }
+    if (line.trim() === "") {
+      out.push("")
+      continue
+    }
 
     out.push("  " + formatInline(line))
   }
@@ -171,7 +195,6 @@ function formatInline(text: string): string {
   return text
 }
 
-
 export function userPrompt() {
   process.stdout.write(c.green + c.bold + "  you  " + c.reset + c.white + "› " + c.reset)
 }
@@ -180,16 +203,23 @@ export function agentPrefix() {
   process.stdout.write(c.cyan + c.bold + "  qai  " + c.reset + c.gray + "› " + c.reset)
 }
 
-export function startSpinner(): () => void {
+export function startSpinner(): { stop: () => void; setCancelHint: (show: boolean) => void } {
   const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
   let i = 0
+  let showCancelHint = false
   process.stdout.write(c.cyan + c.bold + "  qai  " + c.reset + c.dim)
   const id = setInterval(() => {
-    process.stdout.write(`\r  qai  ${c.reset}${c.dim}${frames[i++ % frames.length]} thinking...${c.reset}`)
+    const hint = showCancelHint ? c.yellow + " (press ESC to cancel)" + c.reset + c.dim : ""
+    process.stdout.write(`\r  qai  ${c.reset}${c.dim}${frames[i++ % frames.length]} thinking...${hint}${c.reset}`)
   }, 80)
-  return () => {
-    clearInterval(id)
-    process.stdout.write(`\r  qai  › ${c.reset}`)
+  return {
+    stop: () => {
+      clearInterval(id)
+      process.stdout.write(`\r  qai  › ${c.reset}`)
+    },
+    setCancelHint: (show: boolean) => {
+      showCancelHint = show
+    },
   }
 }
 
