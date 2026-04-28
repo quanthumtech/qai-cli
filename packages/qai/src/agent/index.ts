@@ -10,7 +10,7 @@ import { GrepTool } from "../tool/grep"
 import { DocTool } from "../tool/doc"
 import type { Tool } from "../tool/tool"
 import { loadAgents, DEFAULT_AGENT, type AgentID } from "./agents"
-import { DEFAULT_TOKEN_LIMITS, estimateTokens } from "../util/token"
+import { DEFAULT_TOKEN_LIMITS } from "../util/token"
 
 const AVAILABLE_TOOLS = ["read", "write", "edit", "bash", "glob", "grep", "doc"]
 
@@ -90,42 +90,30 @@ export async function runAgent(opts: {
   const providerID = opts.model.providerID
   const tokenLimit = DEFAULT_TOKEN_LIMITS[providerID] ?? 32000
 
-  // Calculate tokens and limit context to prevent negative maxTokens
-  const promptTokens = estimateTokens(opts.prompt, providerID)
-  const systemTokens = estimateTokens(agentPrompt, providerID)
-  const baseTokens = promptTokens + systemTokens
+  // FIXED maxTokens - never calculate dynamically to avoid negative values
+  // Using a conservative fixed value that works for most providers
+  const maxResponseTokens = 4096
 
-  // Reserve tokens for response and tools
-  const reservedTokens = 8000
-  const availableTokens = Math.max(tokenLimit - reservedTokens - baseTokens, 0)
-
-  // Limit history to fit within available tokens
+  // Limit history to prevent context overflow
   let limitedHistory = opts.history
-  if (availableTokens < 1000) {
-    // If barely any tokens available, keep only last 2 messages
-    limitedHistory = opts.history.slice(-2)
-  } else if (availableTokens < 10000) {
-    // If limited tokens, keep last 4 messages
-    limitedHistory = opts.history.slice(-4)
+  if (limitedHistory.length > 6) {
+    limitedHistory = limitedHistory.slice(-6)
   }
 
-  // Truncate message content if still too large - only for text messages
-  const MAX_MESSAGE_CHARS = 10000
+  // Truncate very long messages to prevent token overflow
+  const MAX_MESSAGE_CHARS = 8000
   const truncatedHistory: CoreMessage[] = []
   for (const m of limitedHistory) {
     if (typeof m.content === "string" && m.content.length > MAX_MESSAGE_CHARS) {
       truncatedHistory.push({
         role: m.role,
-        content: m.content.slice(0, MAX_MESSAGE_CHARS) + "\n[...content truncated...]",
+        content: m.content.slice(0, MAX_MESSAGE_CHARS) + "\n[...truncated]",
       } as CoreMessage)
     } else {
       truncatedHistory.push(m)
     }
   }
   limitedHistory = truncatedHistory
-
-  // Use fixed maxTokens to avoid calculation issues
-  const maxResponseTokens = 4096
 
   try {
     let result = await generateText({
