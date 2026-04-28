@@ -12,12 +12,27 @@ import { loadAgents, DEFAULT_AGENT, type AgentID } from "./agents"
 
 const AVAILABLE_TOOLS = ["read", "write", "edit", "bash", "glob", "grep"]
 
-function isUnavailableToolError(error: unknown): { toolName: string } | null {
+const TOOL_HINTS: Record<string, string> = {
+  ls: "Use 'glob' or 'bash' with 'ls' command instead",
+  cat: "Use 'read' tool to view file contents",
+  find: "Use 'glob' or 'grep' to search for files",
+  pwd: "Use 'bash' with 'pwd' command",
+  cd: "The working directory is already set. Reference files using absolute paths.",
+  rm: "Use 'bash' with 'rm' command to delete files",
+  cp: "Use 'bash' with 'cp' command to copy files",
+  mv: "Use 'bash' with 'mv' command to move files",
+  mkdir: "Use 'bash' with 'mkdir' command to create directories",
+  touch: "Use 'write' tool to create new files",
+}
+
+function isUnavailableToolError(error: unknown): { toolName: string; hint: string } | null {
   if (error && typeof error === "object" && "message" in error) {
     const msg = String((error as any).message)
     const match = msg.match(/unavailable tool '([^']+)'/)
     if (match) {
-      return { toolName: match[1] }
+      const toolName = match[1].toLowerCase()
+      const hint = TOOL_HINTS[toolName] || `Use 'glob', 'grep', 'read', 'write', 'edit', or 'bash' instead.`
+      return { toolName: match[1], hint }
     }
   }
   return null
@@ -67,7 +82,7 @@ export async function runAgent(opts: {
   }
 
   try {
-    const result = await generateText({
+    let result = await generateText({
       model,
       system: agent.systemPrompt + `\nThe current working directory is: ${opts.cwd}`,
       messages: [...opts.history, { role: "user", content: opts.prompt }],
@@ -92,7 +107,6 @@ export async function runAgent(opts: {
 
     const { text, steps } = result
 
-    // If the last step was a tool call with no final text, collect text from all steps
     if (!text) {
       const allText = steps
         .map((s) => s.text)
@@ -104,11 +118,39 @@ export async function runAgent(opts: {
 
     return text
   } catch (err) {
-    const toolErr = isUnavailableToolError(err)
-    if (toolErr) {
-      throw new Error(
-        `Model tried to use unavailable tool '${toolErr.toolName}'. Available tools: ${AVAILABLE_TOOLS.join(", ")}. Please try a different approach or switch to a provider with larger context.`,
-      )
+    const errMsg = err instanceof Error ? err.message : String(err)
+    const isRetryableError =
+      errMsg.includes("max_tokens") ||
+      errMsg.includes("context_length") ||
+      errMsg.includes("rate_limit") ||
+      errMsg.includes("timeout") ||
+      errMsg.includes("unavailable tool")
+
+    if (isRetryableError && !opts.history.some((m) => m.role === "system" && m.content.includes("RETRY_ATTEMPT"))) {
+      const attemptNum =
+        opts.history.filter((m) => m.role === "system" && m.content.includes("RETRY_ATTEMPT")).length + 1
+
+      const retrySystem = `${agent.systemPrompt}\n\n[RETRY_ATTEMPT ${attemptNum}] Previous request had an error: ${errMsg.slice(0, 200)}\nThe current working directory is: ${opts.cwd}`
+
+      const retryResult = await generateText({
+        model,
+        system: retrySystem,
+        messages: [...opts.history.slice(-6), { role: "user", content: opts.prompt }],
+        tools,
+        maxSteps: 20,
+        abortSignal: opts.abortSignal,
+      })
+
+      const { text, steps } = retryResult
+      if (!text) {
+        const allText = steps
+          .map((s) => s.text)
+          .filter(Boolean)
+          .join("\n")
+          .trim()
+        return allText || "(no response)"
+      }
+      return text
     }
     throw err
   }
