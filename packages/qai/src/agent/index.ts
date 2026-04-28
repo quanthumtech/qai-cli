@@ -90,21 +90,48 @@ export async function runAgent(opts: {
   const providerID = opts.model.providerID
   const tokenLimit = DEFAULT_TOKEN_LIMITS[providerID] ?? 32000
 
-  // Calculate max tokens for response - ensure positive value
+  // Calculate tokens and limit context to prevent negative maxTokens
   const promptTokens = estimateTokens(opts.prompt, providerID)
-  const historyTokens = opts.history.reduce(
-    (sum, m) => sum + estimateTokens(typeof m.content === "string" ? m.content : JSON.stringify(m.content), providerID),
-    0,
-  )
   const systemTokens = estimateTokens(agentPrompt, providerID)
-  const totalInputTokens = promptTokens + historyTokens + systemTokens
-  const maxResponseTokens = Math.max(4000, tokenLimit - totalInputTokens)
+  const baseTokens = promptTokens + systemTokens
+
+  // Reserve tokens for response and tools
+  const reservedTokens = 8000
+  const availableTokens = Math.max(tokenLimit - reservedTokens - baseTokens, 0)
+
+  // Limit history to fit within available tokens
+  let limitedHistory = opts.history
+  if (availableTokens < 1000) {
+    // If barely any tokens available, keep only last 2 messages
+    limitedHistory = opts.history.slice(-2)
+  } else if (availableTokens < 10000) {
+    // If limited tokens, keep last 4 messages
+    limitedHistory = opts.history.slice(-4)
+  }
+
+  // Truncate message content if still too large - only for text messages
+  const MAX_MESSAGE_CHARS = 10000
+  const truncatedHistory: CoreMessage[] = []
+  for (const m of limitedHistory) {
+    if (typeof m.content === "string" && m.content.length > MAX_MESSAGE_CHARS) {
+      truncatedHistory.push({
+        role: m.role,
+        content: m.content.slice(0, MAX_MESSAGE_CHARS) + "\n[...content truncated...]",
+      } as CoreMessage)
+    } else {
+      truncatedHistory.push(m)
+    }
+  }
+  limitedHistory = truncatedHistory
+
+  // Use fixed maxTokens to avoid calculation issues
+  const maxResponseTokens = 4096
 
   try {
     let result = await generateText({
       model,
       system: agentPrompt + `\nThe current working directory is: ${opts.cwd}`,
-      messages: [...opts.history, { role: "user", content: opts.prompt }],
+      messages: [...limitedHistory, { role: "user", content: opts.prompt }],
       tools,
       maxSteps: 20,
       maxTokens: maxResponseTokens,
