@@ -3,6 +3,7 @@ import { runAgent } from "../agent"
 import type { ModelRef } from "../provider"
 import { DEFAULTS } from "../provider"
 import { DEFAULT_AGENT, type AgentID } from "../agent/agents"
+import { countContextTokens, truncateMessages, DEFAULT_TOKEN_LIMITS, estimateTokens } from "../util/token"
 
 export const MessageSchema = z.object({
   id: z.string(),
@@ -80,14 +81,33 @@ export const Session = {
 
     const allMessages = messages.get(sessionID)!
     const maxHistory = 10
-    const history = allMessages
-      .slice(0, -1)
-      .slice(-maxHistory)
-      .map((m) => ({ role: m.role, content: m.content }) as import("ai").CoreMessage)
+    const recentMessages = allMessages.slice(0, -1).slice(-maxHistory)
+
+    const history = recentMessages.map((m) => ({ role: m.role, content: m.content }) as import("ai").CoreMessage)
+
+    const providerID = session.model.providerID
+    const tokenLimit = DEFAULT_TOKEN_LIMITS[providerID] ?? 32000
+    const buffer = 2000
+    const effectiveLimit = tokenLimit - buffer
+
+    const { loadAgents, DEFAULT_AGENT } = await import("../agent/agents")
+    const agents = await loadAgents()
+    const agent = agents[session.agentID as string] ?? agents[DEFAULT_AGENT]
+    const systemPrompt = agent?.systemPrompt ?? ""
+
+    const contextTokens = countContextTokens(history, systemPrompt, content, providerID)
+
+    let finalHistory = history
+    if (contextTokens > effectiveLimit) {
+      const truncated = truncateMessages(history, effectiveLimit, providerID, systemPrompt)
+      if (truncated.wasTruncated) {
+        finalHistory = truncated.messages
+      }
+    }
 
     const reply = await runAgent({
       prompt: content,
-      history,
+      history: finalHistory,
       model: session.model as ModelRef,
       cwd: session.cwd,
       sessionID,

@@ -12,19 +12,23 @@ export const ProviderConfigSchema = z.object({
   enabled: z.boolean().default(true),
 })
 
+export const UIConfigSchema = z.object({
+  theme: z.enum(["dark", "light", "auto"]).default("auto"),
+  paginationLines: z.number().min(10).max(200).default(50),
+  wordWrap: z.number().min(40).max(200).default(80),
+  showLineNumbers: z.boolean().default(false),
+})
+
 export const ConfigSchema = z.object({
-  providers: z
-    .record(
-      z.string(),
-      ProviderConfigSchema,
-    )
-    .default({}),
+  providers: z.record(z.string(), ProviderConfigSchema).default({}),
   defaultProvider: z.string().default("anthropic"),
   defaultModel: z.string().optional(),
+  ui: UIConfigSchema.default({}),
 })
 
 export type Config = z.infer<typeof ConfigSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
+export type UIConfig = z.infer<typeof UIConfigSchema>
 
 let _cache: Config | null = null
 
@@ -70,5 +74,16 @@ export const Config = {
   async getProvider(id: string): Promise<ProviderConfig | undefined> {
     const config = await Config.load()
     return config.providers[id]
+  },
+
+  async getUI(): Promise<UIConfig> {
+    const config = await Config.load()
+    return config.ui
+  },
+
+  async setUI(ui: Partial<UIConfig>): Promise<void> {
+    const config = await Config.load()
+    config.ui = { ...config.ui, ...ui }
+    await Config.save(config)
   },
 }

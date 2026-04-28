@@ -406,7 +406,8 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
       currentSpinner = undefined
       isProcessing = false
       pendingCancel = false
-      console.log(renderMarkdown(reply.content))
+      const output = await renderMarkdown(reply.content)
+      console.log(output)
     } catch (err: any) {
       spinner.stop()
       currentSpinner = undefined

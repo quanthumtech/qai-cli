@@ -1,4 +1,4 @@
-import { generateText, tool, type CoreMessage } from "ai"
+import { generateText, tool, type CoreMessage, type ToolCall } from "ai"
 import { z } from "zod"
 import { getModel, type ModelRef } from "../provider"
 import { ReadTool } from "../tool/read"
@@ -9,6 +9,19 @@ import { GlobTool } from "../tool/glob"
 import { GrepTool } from "../tool/grep"
 import type { Tool } from "../tool/tool"
 import { loadAgents, DEFAULT_AGENT, type AgentID } from "./agents"
+
+const AVAILABLE_TOOLS = ["read", "write", "edit", "bash", "glob", "grep"]
+
+function isUnavailableToolError(error: unknown): { toolName: string } | null {
+  if (error && typeof error === "object" && "message" in error) {
+    const msg = String((error as any).message)
+    const match = msg.match(/unavailable tool '([^']+)'/)
+    if (match) {
+      return { toolName: match[1] }
+    }
+  }
+  return null
+}
 
 function wrapTool(def: Tool.Any) {
   return tool({
@@ -53,38 +66,50 @@ export async function runAgent(opts: {
     })
   }
 
-  const { text, steps } = await generateText({
-    model,
-    system: agent.systemPrompt + `\nThe current working directory is: ${opts.cwd}`,
-    messages: [...opts.history, { role: "user", content: opts.prompt }],
-    tools,
-    maxSteps: 20,
-    abortSignal: opts.abortSignal,
-    onStepFinish({ text }) {
-      if (text && opts.onText) opts.onText(text)
-      if (opts.abortSignal?.aborted) {
-        const err = new Error("Aborted")
-        err.name = "AbortError"
-        throw err
-      }
-    },
-  })
+  try {
+    const result = await generateText({
+      model,
+      system: agent.systemPrompt + `\nThe current working directory is: ${opts.cwd}`,
+      messages: [...opts.history, { role: "user", content: opts.prompt }],
+      tools,
+      maxSteps: 20,
+      abortSignal: opts.abortSignal,
+      onStepFinish({ text }) {
+        if (text && opts.onText) opts.onText(text)
+        if (opts.abortSignal?.aborted) {
+          const err = new Error("Aborted")
+          err.name = "AbortError"
+          throw err
+        }
+      },
+    })
 
-  if (opts.abortSignal?.aborted) {
-    const err = new Error("Aborted")
-    err.name = "AbortError"
+    if (opts.abortSignal?.aborted) {
+      const err = new Error("Aborted")
+      err.name = "AbortError"
+      throw err
+    }
+
+    const { text, steps } = result
+
+    // If the last step was a tool call with no final text, collect text from all steps
+    if (!text) {
+      const allText = steps
+        .map((s) => s.text)
+        .filter(Boolean)
+        .join("\n")
+        .trim()
+      return allText || "(no response)"
+    }
+
+    return text
+  } catch (err) {
+    const toolErr = isUnavailableToolError(err)
+    if (toolErr) {
+      throw new Error(
+        `Model tried to use unavailable tool '${toolErr.toolName}'. Available tools: ${AVAILABLE_TOOLS.join(", ")}. Please try a different approach or switch to a provider with larger context.`,
+      )
+    }
     throw err
   }
-
-  // If the last step was a tool call with no final text, collect text from all steps
-  if (!text) {
-    const allText = steps
-      .map((s) => s.text)
-      .filter(Boolean)
-      .join("\n")
-      .trim()
-    return allText || "(no response)"
-  }
-
-  return text
 }
