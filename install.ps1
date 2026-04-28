@@ -11,7 +11,18 @@ $url = "https://github.com/$repo/releases/download/$tag/qai-windows-x64.exe"
 Write-Host "Installing qai $tag..."
 
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-Invoke-WebRequest -Uri $url -OutFile "$installDir\qai.exe"
+
+$tempFile = "$installDir\qai-temp.exe"
+$bakFile = "$installDir\qai-backup.exe"
+
+Invoke-WebRequest -Uri $url -OutFile $tempFile
+
+if (Test-Path "$installDir\qai.exe") {
+    Remove-Item -Force $bakFile -ErrorAction SilentlyContinue
+    Rename-Item -Path "$installDir\qai.exe" -NewName "qai-backup.exe" -ErrorAction SilentlyContinue
+}
+Rename-Item -Path $tempFile -NewName "qai.exe"
+Remove-Item -Force $bakFile -ErrorAction SilentlyContinue
 
 # Add to PATH if not already there
 $path = [Environment]::GetEnvironmentVariable("PATH", "User")
