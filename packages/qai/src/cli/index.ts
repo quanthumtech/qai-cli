@@ -26,6 +26,7 @@ const COMMANDS = [
   "/provider set",
   "/provider default",
   "/provider remove",
+  "/connect",
   "/model",
   "/model list",
   "/model set",
@@ -354,6 +355,48 @@ ${c.bold}Env vars:${c.reset}   QAI_PROVIDER · QAI_MODEL · ANTHROPIC_API_KEY ·
     if (input === "/clear") {
       await Session.clearMessages(session.id)
       printLogo(providerID, modelID, session.agentID)
+      continue
+    }
+    if (input === "/connect") {
+      const providers = [
+        { id: "anthropic", name: "Anthropic (Claude)", defaultModel: "claude-sonnet-4-5" },
+        { id: "openai", name: "OpenAI (GPT)", defaultModel: "gpt-4o" },
+        { id: "google", name: "Google (Gemini)", defaultModel: "gemini-2.0-flash" },
+        { id: "groq", name: "Groq", defaultModel: "llama-3.3-70b-versatile" },
+        { id: "mistral", name: "Mistral", defaultModel: "mistral-large-latest" },
+        { id: "nvidia", name: "NVIDIA", defaultModel: "meta/llama-3.1-70b-instruct" },
+      ]
+      console.log()
+      infoLine("Available providers:")
+      console.log()
+      for (const p of providers) {
+        console.log(`  ${c.cyan}${p.id}${c.reset}  - ${p.name}`)
+      }
+      console.log()
+      infoLine("Usage: /connect <provider> <api-key>")
+      console.log(`  Example: ${c.dim}/connect anthropic sk-ant-...${c.reset}`)
+      console.log()
+      continue
+    }
+    if (input.startsWith("/connect ")) {
+      const args = input.slice(9).trim().split(" ")
+      const provider = args[0]
+      const apiKey = args.slice(1).join(" ")
+      if (!provider || !apiKey) {
+        errorLine("Usage: /connect <provider> <api-key>")
+        console.log()
+        continue
+      }
+      await Config.setProvider(provider, { apiKey, enabled: true })
+      await Config.setDefault(provider)
+      const newConfig = await Config.load()
+      providerID = provider as ProviderID
+      modelID = newConfig.defaultModel ?? DEFAULTS[providerID] ?? "gpt-4o"
+      session.model.providerID = providerID
+      session.model.modelID = modelID
+      infoLine(`Connected to ${provider}!`)
+      printLogo(providerID, modelID, session.agentID)
+      console.log()
       continue
     }
     if (input === "/provider") {
