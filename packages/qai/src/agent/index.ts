@@ -10,7 +10,6 @@ import { GrepTool } from "../tool/grep"
 import { DocTool } from "../tool/doc"
 import type { Tool } from "../tool/tool"
 import { loadAgents, DEFAULT_AGENT, type AgentID } from "./agents"
-import { DEFAULT_TOKEN_LIMITS } from "../util/token"
 
 const AVAILABLE_TOOLS = ["read", "write", "edit", "bash", "glob", "grep", "doc"]
 
@@ -87,42 +86,18 @@ export async function runAgent(opts: {
     })
   }
 
-  const providerID = opts.model.providerID
-  const tokenLimit = DEFAULT_TOKEN_LIMITS[providerID] ?? 32000
-
-  // FIXED maxTokens - never calculate dynamically to avoid negative values
-  // Using a conservative fixed value that works for most providers
-  const maxResponseTokens = 4096
-
-  // Limit history to prevent context overflow
-  let limitedHistory = opts.history
-  if (limitedHistory.length > 6) {
-    limitedHistory = limitedHistory.slice(-6)
-  }
-
-  // Truncate very long messages to prevent token overflow
-  const MAX_MESSAGE_CHARS = 8000
-  const truncatedHistory: CoreMessage[] = []
-  for (const m of limitedHistory) {
-    if (typeof m.content === "string" && m.content.length > MAX_MESSAGE_CHARS) {
-      truncatedHistory.push({
-        role: m.role,
-        content: m.content.slice(0, MAX_MESSAGE_CHARS) + "\n[...truncated]",
-      } as CoreMessage)
-    } else {
-      truncatedHistory.push(m)
-    }
-  }
-  limitedHistory = truncatedHistory
-
   try {
+    // Use fixed maxTokens to prevent negative value error from SDK
+    // Using 8192 to allow more reasoning space for the model
+    const maxTokens = 8192
+
     let result = await generateText({
       model,
       system: agentPrompt + `\nThe current working directory is: ${opts.cwd}`,
-      messages: [...limitedHistory, { role: "user", content: opts.prompt }],
+      messages: [...opts.history, { role: "user", content: opts.prompt }],
       tools,
       maxSteps: 20,
-      maxTokens: maxResponseTokens,
+      maxTokens,
       abortSignal: opts.abortSignal,
       onStepFinish({ text }) {
         if (text && opts.onText) opts.onText(text)
@@ -172,10 +147,10 @@ export async function runAgent(opts: {
       const retryResult = await generateText({
         model,
         system: retrySystem,
-        messages: [...opts.history.slice(-6), { role: "user", content: opts.prompt }],
+        messages: [...retryHistory, { role: "user", content: opts.prompt }],
         tools,
         maxSteps: 20,
-        maxTokens: 8000, // Fixed value for retries
+        maxTokens: 8192,
         abortSignal: opts.abortSignal,
       })
 
